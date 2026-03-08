@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Particle.h"
 #include <vector>
 #include <fstream>
@@ -11,12 +11,23 @@ public:
     double dt;
     int step;
 
-    Simulation(int numParticles, double bounds, double dt);
+    bool infiniteMode = false;
+
+    Simulation(int numParticles, double bounds, double dt,
+        bool infiniteMode = false);
+
     void initialize();
-    void update();
-    void writeCSV();
-    void runContinuous();
+    void updateSerial();
+    void updateParallel();
+    void runBenchmark(int seconds, bool parallelMode);
+    void runInfinite(bool parallelMode,
+        const std::string& csvPath = "particles.csv");
 
 private:
-    std::ofstream csvFile;
+    std::fstream csvFile;
+    int          rowBytes;
+
+    // Prints particles 1-10 to the console, overwriting the same
+    // lines every frame so the display updates in-place.
+    void printConsoleSnapshot();
 };
