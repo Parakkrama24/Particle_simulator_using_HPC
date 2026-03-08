@@ -12,10 +12,13 @@ public:
     int step;
 
     Simulation(int numParticles, double bounds, double dt);
+
     void initialize();
-    void update();
-    void writeCSV();
-    void runContinuous();
+
+    void updateSerial();
+    void updateParallel();
+
+    void runBenchmark(int seconds, bool parallelMode);
 
 private:
     std::ofstream csvFile;

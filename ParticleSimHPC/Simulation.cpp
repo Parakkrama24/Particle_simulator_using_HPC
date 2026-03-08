@@ -5,19 +5,17 @@
 #include <omp.h>
 
 Simulation::Simulation(int numParticles, double bounds, double dt)
-    : bounds(bounds), dt(dt), step(0) {
-
+    : bounds(bounds), dt(dt), step(0)
+{
     particles.resize(numParticles, Particle(0, 0, 0, 0, 0, 0));
-
-    csvFile.open("particles.csv");
-    csvFile << "frame,particle_id,x,y,z,vx,vy,vz\n";
 }
 
-void Simulation::initialize() {
+void Simulation::initialize()
+{
     srand(42);
 
-#pragma omp parallel for
-    for (int i = 0; i < (int)particles.size(); i++) {
+    for (int i = 0; i < (int)particles.size(); i++)
+    {
         double vx = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
         double vy = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
         double vz = ((double)rand() / RAND_MAX) * 2.0 - 1.0;
@@ -26,76 +24,61 @@ void Simulation::initialize() {
     }
 }
 
-void Simulation::update()
+void Simulation::updateSerial()
 {
-#pragma omp parallel
+    for (int i = 0; i < (int)particles.size(); i++)
     {
-        int tid = omp_get_thread_num();
+        Particle& p = particles[i];
 
-#pragma omp for schedule(static)
-        for (int i = 0; i < (int)particles.size(); i++)
-        {
-            Particle& p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
 
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.z += p.vz * dt;
-
-            if (p.x > bounds || p.x < -bounds) p.vx = -p.vx;
-            if (p.y > bounds || p.y < -bounds) p.vy = -p.vy;
-            if (p.z > bounds || p.z < -bounds) p.vz = -p.vz;
-
-            if (i % 20000 == 0)
-            {
-#pragma omp critical
-                std::cout << "Thread " << tid
-                    << " processing particle " << i
-                    << std::endl;
-            }
-        }
+        if (p.x > bounds || p.x < -bounds) p.vx = -p.vx;
+        if (p.y > bounds || p.y < -bounds) p.vy = -p.vy;
+        if (p.z > bounds || p.z < -bounds) p.vz = -p.vz;
     }
-
-    step++;
 }
 
-void Simulation::writeCSV() {
+void Simulation::updateParallel()
+{
+#pragma omp parallel for schedule(static)
+    for (int i = 0; i < (int)particles.size(); i++)
+    {
+        Particle& p = particles[i];
 
-    // Writing to file must stay SERIAL
-    for (int i = 0; i < (int)particles.size(); i++) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
 
-        csvFile << step << ","
-            << i << ","
-            << particles[i].x << ","
-            << particles[i].y << ","
-            << particles[i].z << ","
-            << particles[i].vx << ","
-            << particles[i].vy << ","
-            << particles[i].vz << "\n";
+        if (p.x > bounds || p.x < -bounds) p.vx = -p.vx;
+        if (p.y > bounds || p.y < -bounds) p.vy = -p.vy;
+        if (p.z > bounds || p.z < -bounds) p.vz = -p.vz;
     }
-
-    csvFile.flush();
 }
 
-void Simulation::runContinuous() {
+void Simulation::runBenchmark(int seconds, bool parallelMode)
+{
+    int frames = 0;
 
-    std::cout << "Simulation running (OpenMP)...\n";
-    std::cout << "Threads: " << omp_get_max_threads() << "\n\n";
-    std::cout << "Max Threads: " << omp_get_max_threads() << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
 
-    while (true) {
+    while (true)
+    {
+        if (parallelMode)
+            updateParallel();
+        else
+            updateSerial();
 
-        auto frameStart = std::chrono::high_resolution_clock::now();
+        frames++;
 
-        update();
-        writeCSV();
+        auto now = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = now - start;
 
-        auto frameEnd = std::chrono::high_resolution_clock::now();
-
-        std::chrono::duration<double, std::milli> frameTime = frameEnd - frameStart;
-
-        std::cout << "Frame " << step
-            << " | Time: "
-            << frameTime.count()
-            << " ms\n";
+        if (elapsed.count() >= seconds)
+            break;
     }
+
+    std::cout << "Frames completed: " << frames << std::endl;
+    std::cout << "Average FPS: " << frames / (double)seconds << std::endl;
 }
