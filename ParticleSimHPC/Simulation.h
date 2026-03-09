@@ -27,6 +27,8 @@ private:
     std::fstream csvFile;
     int          rowBytes;
 
+    void initCSV(const std::string& csvPath);
+    void writeCSV();
     // Prints particles 1-10 to the console, overwriting the same
     // lines every frame so the display updates in-place.
     void printConsoleSnapshot();

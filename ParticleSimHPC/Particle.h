@@ -1,3 +1,5 @@
+// he underlying data structure for each point is a simple struct defined in Particle.h
+
 #pragma once
 #include <iostream>
 
