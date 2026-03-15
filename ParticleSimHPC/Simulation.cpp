@@ -1,4 +1,5 @@
-﻿#include "Simulation.h"
+﻿// The actual physics logic, where we update positions frame-by-frame and calculate boundary collisions, is implemented in Simulation.cpp
+#include "Simulation.h"
 #include <cstdlib>
 #include <iostream>
 #include <chrono>
@@ -153,7 +154,10 @@ void Simulation::printConsoleSnapshot()
 // ─────────────────────────────────────────────
 // Infinite mode
 // ─────────────────────────────────────────────
-void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
+// ─────────────────────────────────────────────
+// File I/O Helpers (Refactored)
+// ─────────────────────────────────────────────
+void Simulation::initCSV(const std::string& csvPath)
 {
     const int ID_W = 7;
     const int VAL_W = 13;
@@ -170,25 +174,23 @@ void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
         std::exit(EXIT_FAILURE);
     }
 
-    // ── Create & pre-fill CSV ─────────────────────────────────────────────
+    // Create & pre-fill CSV
+    std::ofstream init(csvPath, std::ios::trunc);
+    if (!init.is_open())
     {
-        std::ofstream init(csvPath, std::ios::trunc);
-        if (!init.is_open())
-        {
-            std::cerr << "ERROR: cannot open " << csvPath << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-        init << header;
-        const int N = (int)particles.size();
-        for (int i = 0; i < N; i++)
-        {
-            init << std::setw(ID_W) << i << ','
-                << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
-                << std::showpos << 0.0 << ','
-                << std::setw(VAL_W) << 0.0 << ','
-                << std::setw(VAL_W) << 0.0
-                << std::noshowpos << '\n';
-        }
+        std::cerr << "ERROR: cannot open " << csvPath << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    init << header;
+    const int N = (int)particles.size();
+    for (int i = 0; i < N; i++)
+    {
+        init << std::setw(ID_W) << i << ','
+            << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
+            << std::showpos << 0.0 << ','
+            << std::setw(VAL_W) << 0.0 << ','
+            << std::setw(VAL_W) << 0.0
+            << std::noshowpos << '\n';
     }
 
     csvFile.open(csvPath, std::ios::in | std::ios::out | std::ios::binary);
@@ -197,37 +199,54 @@ void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
         std::cerr << "ERROR: cannot reopen " << csvPath << std::endl;
         std::exit(EXIT_FAILURE);
     }
+}
 
-    // ── Static banner (printed once, stays above the live block) ─────────
+void Simulation::writeCSV()
+{
+    const int ID_W = 7;
+    const int VAL_W = 13;
+    const int PREC = 6;
+    const int N = (int)particles.size();
+
+    // Overwrite CSV in-place
+    csvFile.seekp(rowBytes, std::ios::beg);
+    for (int i = 0; i < N; i++)
+    {
+        const Particle& p = particles[i];
+        csvFile << std::setw(ID_W) << i << ','
+            << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
+            << std::showpos << p.x << ','
+            << std::setw(VAL_W) << p.y << ','
+            << std::setw(VAL_W) << p.z
+            << std::noshowpos << '\n';
+    }
+    csvFile.flush();
+}
+
+// ─────────────────────────────────────────────
+// Infinite mode (Cleaned up)
+// ─────────────────────────────────────────────
+void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
+{
+    // 1. Setup the file
+    initCSV(csvPath);
+
     std::cout << "==============================\n"
         << " Infinite mode  |  CSV: " << csvPath << "\n"
         << " Press Ctrl+C to stop\n"
         << "==============================\n";
 
-    const int N = (int)particles.size();
-
-    // ── Main loop ─────────────────────────────────────────────────────────
+    // 2. Main loop
     while (true)
     {
-        // 1. Advance physics
+        // Advance physics
         if (parallelMode) updateParallel();
         else              updateSerial();
 
-        // 2. Overwrite CSV in-place
-        csvFile.seekp(rowBytes, std::ios::beg);
-        for (int i = 0; i < N; i++)
-        {
-            const Particle& p = particles[i];
-            csvFile << std::setw(ID_W) << i << ','
-                << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
-                << std::showpos << p.x << ','
-                << std::setw(VAL_W) << p.y << ','
-                << std::setw(VAL_W) << p.z
-                << std::noshowpos << '\n';
-        }
-        csvFile.flush();
+        // Write to file
+        writeCSV();
 
-        // 3. Live console display for particles 1–10
+        // Live console display
         printConsoleSnapshot();
 
         step++;
