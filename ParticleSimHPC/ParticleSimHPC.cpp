@@ -1,4 +1,9 @@
-﻿#include "Simulation.h"
+﻿// The main configuration—like setting the 100,000 particle limit and hardcoding the 4 CPU threads—is handled right in ParticleSimHPC.cpp
+
+
+
+
+#include "Simulation.h"
 #include <iostream>
 #include <omp.h>
 

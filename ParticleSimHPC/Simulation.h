@@ -23,6 +23,8 @@ public:
 	void runInfinite(bool parallelMode, int iterationCount,
         const std::string& csvPath = "particles.csv");
 
+    void LimitIterationMethod(int itaretionCount);
+
     void OpenCsv(const std::string& csvPath, std::string& header, const int ID_W, const int VAL_W, const int PREC);
 
 private:

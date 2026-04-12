@@ -181,51 +181,7 @@ void Simulation::runInfinite(bool parallelMode, int itaretionCount, const std::s
     // ── Benchmark comparison block (runs once if itaretionCount != 0) ─────
     if (itaretionCount != 0)
     {
-        std::cout << "\n--- Benchmarking " << itaretionCount
-            << " iterations (Serial vs Parallel) ---\n";
-
-        // Save current particle state so we run both methods on identical data
-        std::vector<Particle> savedState = particles;
-
-        // ── Serial run ────────────────────────────────────────────────────
-        particles = savedState;
-        auto serialStart = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < itaretionCount; i++)
-            updateSerial();
-        auto serialEnd = std::chrono::high_resolution_clock::now();
-        double serialSec = std::chrono::duration<double>(serialEnd - serialStart).count();
-
-        // ── Parallel run ──────────────────────────────────────────────────
-        particles = savedState;
-        auto parallelStart = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < itaretionCount; i++)
-            updateParallel();
-        auto parallelEnd = std::chrono::high_resolution_clock::now();
-        double parallelSec = std::chrono::duration<double>(parallelEnd - parallelStart).count();
-
-        // Restore state to what parallel left off on (fair starting point)
-        // (particles already hold parallel's final state — no extra copy needed)
-
-        double speedup = serialSec / parallelSec;
-
-        std::cout << std::fixed << std::setprecision(4);
-        std::cout << "  Serial   time : " << std::setw(10) << serialSec << " s"
-            << "  (" << std::setprecision(1) << (itaretionCount / serialSec)
-            << " iter/s)\n";
-        std::cout << std::setprecision(4);
-        std::cout << "  Parallel time : " << std::setw(10) << parallelSec << " s"
-            << "  (" << std::setprecision(1) << (itaretionCount / parallelSec)
-            << " iter/s)\n";
-        std::cout << std::setprecision(4);
-        std::cout << "  Speedup       : " << std::setw(10) << speedup << "x  ";
-
-        if (speedup >= 1.0)
-            std::cout << "(Parallel is faster)\n";
-        else
-            std::cout << "(Serial is faster — consider thread overhead)\n";
-
-        std::cout << "  OMP threads   : " << omp_get_max_threads() << "\n";
-        std::cout << "----------------------------------------------\n\n";
+        LimitIterationMethod(itaretionCount);
     }
 
     const int N = (int)particles.size();
@@ -255,6 +211,54 @@ void Simulation::runInfinite(bool parallelMode, int itaretionCount, const std::s
     }
 
     csvFile.close();
+}
+void Simulation::LimitIterationMethod(int itaretionCount)
+{
+    std::cout << "\n--- Benchmarking " << itaretionCount
+        << " iterations (Serial vs Parallel) ---\n";
+
+    // Save current particle state so we run both methods on identical data
+    std::vector<Particle> savedState = particles;
+
+    // ── Serial run ────────────────────────────────────────────────────
+    particles = savedState;
+    auto serialStart = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < itaretionCount; i++)
+        updateSerial();
+    auto serialEnd = std::chrono::high_resolution_clock::now();
+    double serialSec = std::chrono::duration<double>(serialEnd - serialStart).count();
+
+    // ── Parallel run ──────────────────────────────────────────────────
+    particles = savedState;
+    auto parallelStart = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < itaretionCount; i++)
+        updateParallel();
+    auto parallelEnd = std::chrono::high_resolution_clock::now();
+    double parallelSec = std::chrono::duration<double>(parallelEnd - parallelStart).count();
+
+    // Restore state to what parallel left off on (fair starting point)
+    // (particles already hold parallel's final state — no extra copy needed)
+
+    double speedup = serialSec / parallelSec;
+
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "  Serial   time : " << std::setw(10) << serialSec << " s"
+        << "  (" << std::setprecision(1) << (itaretionCount / serialSec)
+        << " iter/s)\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  Parallel time : " << std::setw(10) << parallelSec << " s"
+        << "  (" << std::setprecision(1) << (itaretionCount / parallelSec)
+        << " iter/s)\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  Speedup       : " << std::setw(10) << speedup << "x  ";
+
+    if (speedup >= 1.0)
+        std::cout << "(Parallel is faster)\n";
+    else
+        std::cout << "(Serial is faster — consider thread overhead)\n";
+
+    std::cout << "  OMP threads   : " << omp_get_max_threads() << "\n";
+    std::cout << "----------------------------------------------\n\n";
 }
 //Open Csv
 void Simulation::OpenCsv(const std::string& csvPath, std::string& header, const int ID_W, const int VAL_W, const int PREC)
