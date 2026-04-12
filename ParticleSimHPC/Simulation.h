@@ -20,8 +20,10 @@ public:
     void updateSerial();
     void updateParallel();
     void runBenchmark(int seconds, bool parallelMode);
-    void runInfinite(bool parallelMode,
+	void runInfinite(bool parallelMode, int iterationCount,
         const std::string& csvPath = "particles.csv");
+
+    void OpenCsv(const std::string& csvPath, std::string& header, const int ID_W, const int VAL_W, const int PREC);
 
 private:
     std::fstream csvFile;

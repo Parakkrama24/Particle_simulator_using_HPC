@@ -9,12 +9,13 @@ int main()
     const int    DURATION = 10;       // seconds (finite/benchmark mode only)
     const double BOUNDS = 100.0;
     const double DT = 0.1;
+	const int ITERATION_COUNT = 1000; // Number of iterations to run in infinite mode before writing to CSV
 
     // ── Toggle this bool ─────────────────────────────────────────────────────
     //   false → timed benchmark (original behaviour, no CSV)
     //   true  → infinite loop, CSV has exactly NUM_PARTICLES rows,
     //            each row's x/y/z is overwritten every frame
-    const bool INFINITE_MODE = false;
+    const bool INFINITE_MODE = true;
 
     // ── Parallel flag & thread count (applies to both modes) ─────────────────
     const bool PARALLEL = true;
@@ -33,7 +34,7 @@ int main()
 
         Simulation sim(NUM_PARTICLES, BOUNDS, DT, /*infiniteMode=*/true);
         sim.initialize();
-        sim.runInfinite(PARALLEL, "particles.csv");
+        sim.runInfinite(PARALLEL, ITERATION_COUNT, "particles.csv");
         // Change the second argument to write to a different path, e.g.:
         //   sim.runInfinite(PARALLEL, "/tmp/particles.csv");
     }

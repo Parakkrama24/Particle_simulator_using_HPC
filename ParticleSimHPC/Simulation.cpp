@@ -89,7 +89,7 @@ void Simulation::runBenchmark(int seconds, bool parallelMode)
         if (elapsed.count() >= seconds) break;
     }
 
-    std::cout << "Frames completed: " << frames << std::endl;
+    std::cout << "Iterations completed: " << frames << std::endl;
     std::cout << "Average FPS: " << frames / (double)seconds << std::endl;
 }
 
@@ -122,7 +122,7 @@ void Simulation::printConsoleSnapshot()
 
     // ── Frame counter line ────────────────────────────────────────────────
     std::cout << "\033[2K"   // erase line
-        << "  Frame: " << std::setw(8) << step
+        << "  Itaretions: " << std::setw(8) << step
         << "   (showing particles 1 – " << show << ")\n";
 
     // ── Column header ─────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ void Simulation::printConsoleSnapshot()
 // ─────────────────────────────────────────────
 // Infinite mode
 // ─────────────────────────────────────────────
-void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
+void Simulation::runInfinite(bool parallelMode, int itaretionCount, const std::string& csvPath)
 {
     const int ID_W = 7;
     const int VAL_W = 13;
@@ -170,6 +170,95 @@ void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
         std::exit(EXIT_FAILURE);
     }
 
+    OpenCsv(csvPath, header, ID_W, VAL_W, PREC);
+
+    // ── Static banner ─────────────────────────────────────────────────────
+    std::cout << "==============================\n"
+        << " Infinite mode  |  CSV: " << csvPath << "\n"
+        << " Press Ctrl+C to stop\n"
+        << "==============================\n";
+
+    // ── Benchmark comparison block (runs once if itaretionCount != 0) ─────
+    if (itaretionCount != 0)
+    {
+        std::cout << "\n--- Benchmarking " << itaretionCount
+            << " iterations (Serial vs Parallel) ---\n";
+
+        // Save current particle state so we run both methods on identical data
+        std::vector<Particle> savedState = particles;
+
+        // ── Serial run ────────────────────────────────────────────────────
+        particles = savedState;
+        auto serialStart = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < itaretionCount; i++)
+            updateSerial();
+        auto serialEnd = std::chrono::high_resolution_clock::now();
+        double serialSec = std::chrono::duration<double>(serialEnd - serialStart).count();
+
+        // ── Parallel run ──────────────────────────────────────────────────
+        particles = savedState;
+        auto parallelStart = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < itaretionCount; i++)
+            updateParallel();
+        auto parallelEnd = std::chrono::high_resolution_clock::now();
+        double parallelSec = std::chrono::duration<double>(parallelEnd - parallelStart).count();
+
+        // Restore state to what parallel left off on (fair starting point)
+        // (particles already hold parallel's final state — no extra copy needed)
+
+        double speedup = serialSec / parallelSec;
+
+        std::cout << std::fixed << std::setprecision(4);
+        std::cout << "  Serial   time : " << std::setw(10) << serialSec << " s"
+            << "  (" << std::setprecision(1) << (itaretionCount / serialSec)
+            << " iter/s)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "  Parallel time : " << std::setw(10) << parallelSec << " s"
+            << "  (" << std::setprecision(1) << (itaretionCount / parallelSec)
+            << " iter/s)\n";
+        std::cout << std::setprecision(4);
+        std::cout << "  Speedup       : " << std::setw(10) << speedup << "x  ";
+
+        if (speedup >= 1.0)
+            std::cout << "(Parallel is faster)\n";
+        else
+            std::cout << "(Serial is faster — consider thread overhead)\n";
+
+        std::cout << "  OMP threads   : " << omp_get_max_threads() << "\n";
+        std::cout << "----------------------------------------------\n\n";
+    }
+
+    const int N = (int)particles.size();
+
+    // ── Main infinite loop ────────────────────────────────────────────────
+    while (true)
+    {
+        if (parallelMode) updateParallel();
+        else              updateSerial();
+
+        // Overwrite CSV in-place
+        csvFile.seekp(rowBytes, std::ios::beg);
+        for (int i = 0; i < N; i++)
+        {
+            const Particle& p = particles[i];
+            csvFile << std::setw(ID_W) << i << ','
+                << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
+                << std::showpos << p.x << ','
+                << std::setw(VAL_W) << p.y << ','
+                << std::setw(VAL_W) << p.z
+                << std::noshowpos << '\n';
+        }
+        csvFile.flush();
+
+        printConsoleSnapshot();
+        step++;
+    }
+
+    csvFile.close();
+}
+//Open Csv
+void Simulation::OpenCsv(const std::string& csvPath, std::string& header, const int ID_W, const int VAL_W, const int PREC)
+{
     // ── Create & pre-fill CSV ─────────────────────────────────────────────
     {
         std::ofstream init(csvPath, std::ios::trunc);
@@ -197,41 +286,4 @@ void Simulation::runInfinite(bool parallelMode, const std::string& csvPath)
         std::cerr << "ERROR: cannot reopen " << csvPath << std::endl;
         std::exit(EXIT_FAILURE);
     }
-
-    // ── Static banner (printed once, stays above the live block) ─────────
-    std::cout << "==============================\n"
-        << " Infinite mode  |  CSV: " << csvPath << "\n"
-        << " Press Ctrl+C to stop\n"
-        << "==============================\n";
-
-    const int N = (int)particles.size();
-
-    // ── Main loop ─────────────────────────────────────────────────────────
-    while (true)
-    {
-        // 1. Advance physics
-        if (parallelMode) updateParallel();
-        else              updateSerial();
-
-        // 2. Overwrite CSV in-place
-        csvFile.seekp(rowBytes, std::ios::beg);
-        for (int i = 0; i < N; i++)
-        {
-            const Particle& p = particles[i];
-            csvFile << std::setw(ID_W) << i << ','
-                << std::setw(VAL_W) << std::fixed << std::setprecision(PREC)
-                << std::showpos << p.x << ','
-                << std::setw(VAL_W) << p.y << ','
-                << std::setw(VAL_W) << p.z
-                << std::noshowpos << '\n';
-        }
-        csvFile.flush();
-
-        // 3. Live console display for particles 1–10
-        printConsoleSnapshot();
-
-        step++;
-    }
-
-    csvFile.close();
 }
